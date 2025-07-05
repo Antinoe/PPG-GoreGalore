@@ -1,0 +1,21 @@
+{
+  "Name": "Gore Galore",
+  "Author": "Antinous",
+  "Description": "From weak gasps to gut-wrenching shrieks, Gore Galore fills every injury with a voice — and every bone with a breaking point!",
+  "ModVersion": "1.0.0",
+  "GameVersion": "1.14+",
+  "ThumbnailPath": "thumb.png",
+  "EntryPoint": "Mod.Mod",
+  "Tags": [
+    "fun",
+    "realistic",
+    "gore",
+    "humor"
+  ],
+  "Scripts": [
+    "Mod.cs"
+  ],
+  "Active": true,
+  "UGCIdentity": null,
+  "CreatorUGCIdentity": "3516916884"
+}

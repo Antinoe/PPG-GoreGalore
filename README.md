@@ -7,7 +7,7 @@ Featuring iconic screams and crunches from the classic browser game _Happy Wheel
 
 
 **Features:**
-- 😫 Randomly assigned screams for every Human character.
+- 😫 Every Human gets a randomly assigned voice profile — men, women, and children alike!
 - 🍖 Gruesome, layered gore sounds: bone snaps, torso splits, pelvis bursts, chest explosions, and more...
 
 **TODO:**

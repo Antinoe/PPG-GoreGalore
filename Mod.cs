@@ -12,7 +12,7 @@ namespace Mod
 {
 	public enum VoiceProfile
 	{
-		NoVoice,
+		Mute,
 		WheelchairGuy,
 		SegwayGuy,
 		IrresponsibleDad,
@@ -28,13 +28,40 @@ namespace Mod
 		Elf,
 		Santa
 	}
+	public class DummySound : MonoBehaviour
+	{
+		public float timer = 0;
+		public void Start()
+		{
+			gameObject.GetComponent<BoxCollider2D>().size = new Vector2(0.01f, 0.01f);
+			gameObject.GetComponent<PhysicalBehaviour>().Selectable = false;
+		}
+		public void FixedUpdate()
+		{
+			timer += Time.deltaTime;
+			if (timer >= 2f)
+			{
+				//Debug.Log(gameObject.name + " has been destroyed.");
+				//Debug.Log("Sound Dummy has been destroyed.");
+				Destroy(gameObject);
+			}
+		}
+	}
 	public class Mod : MonoBehaviour
 	{
+		public static bool EnableVoices = true;
+		public static bool EnableVoicesFalling = true;
+		public static bool EnableGoreSounds = true;
+		public static bool EnableBurstSounds = true;
 		public static AudioClip[] HappyWheels_BoneSnap = new AudioClip[4]{
 			ModAPI.LoadSound("Assets/HappyWheels/Gore/BoneBreak1.wav"),
 			ModAPI.LoadSound("Assets/HappyWheels/Gore/BoneBreak2.wav"),
 			ModAPI.LoadSound("Assets/HappyWheels/Gore/BoneBreak3.wav"),
 			ModAPI.LoadSound("Assets/HappyWheels/Gore/BoneBreak4.wav")
+		};
+		public static AudioClip[] HappyWheels_BoneCrunch = new AudioClip[2]{
+			ModAPI.LoadSound("Assets/HappyWheels/Gore/LimbRip3.wav"),
+			ModAPI.LoadSound("Assets/HappyWheels/Gore/LimbRip4.wav")
 		};
 		public static AudioClip[] HappyWheels_LimbSplit = new AudioClip[3]{
 			ModAPI.LoadSound("Assets/HappyWheels/Gore/LimbRip2.wav"),
@@ -254,6 +281,53 @@ namespace Mod
 		};
 		public static void Main()
 		{
+			try
+			{
+				string settings = ModAPI.DeserialiseJSON<string>("GoreGaloreSettings.json");
+				string[] curSettings = settings.Split(',');
+				EnableVoices = bool.Parse(curSettings[0]);
+				EnableVoicesFalling = bool.Parse(curSettings[1]);
+				EnableGoreSounds = bool.Parse(curSettings[2]);
+				EnableBurstSounds = bool.Parse(curSettings[3]);
+			}
+			catch
+			{
+				string defaultSettings = "true,true";
+				ModAPI.SerialiseJSON(defaultSettings, "GoreGaloreSettings.json");
+			}
+			ModAPI.Register(new Modification()
+			{
+				OriginalItem = ModAPI.FindSpawnable("Soap"),
+				NameOverride = "Gore Galore Settings",
+				NameToOrderByOverride = "!!!",
+				DescriptionOverride = "Configure Gore Galore's sound options.",
+				CategoryOverride = ModAPI.FindCategory("Entities"),
+				ThumbnailOverride = ModAPI.LoadSprite("Assets/Settings.png"),
+				AfterSpawn = (Instance) =>
+				{
+					Instance.AddComponent<GoreGaloreSettingsUI>();
+				}
+			});
+			ModAPI.Register(
+				new Modification()
+				{
+					OriginalItem = ModAPI.FindSpawnable("Soap"),
+					NameOverride = "Dummy Sound",
+					NameToOrderByOverride = "Aa",
+					DescriptionOverride = "You're not supposed to see this..",
+                    //CategoryOverride = ModAPI.FindCategory("Entities"),
+					ThumbnailOverride = ModAPI.LoadSprite("Assets/DummySound.png"),
+					AfterSpawn = (Instance) =>
+					{
+						Instance.AddComponent<DummySound>();
+						Instance.AddComponent<AudioSource>();
+						Instance.AddComponent<GoreAudioSource>();
+						Instance.AddComponent<FreezeBehaviour>();
+						Instance.gameObject.layer = 10;
+						Instance.GetComponent<SpriteRenderer>().sprite = ModAPI.LoadSprite("Assets/DummySound.png");
+					}
+				}
+			);
 			ModAPI.FindSpawnable("Human").Prefab.AddComponent<GoreGaloreBootstrapper>();
 			ModAPI.OnItemSpawned += (sender, args) =>
 			{
@@ -266,16 +340,30 @@ namespace Mod
 				var voice = brainLimb.GetComponent<VoiceManager>();
 				if (voice == null) { voice = brainLimb.gameObject.AddComponent<VoiceManager>(); }
 				var phys = brainLimb.PhysicalBehaviour;
-				// 🪲🔨 I need to remove all of the buttons bellow and make a single Voice Menu to open.. I just don't know how yet.
+				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
+					"VoiceNone",
+					"Mute Voice",
+					"Mute Voice",
+					new UnityAction[] {
+						() => {
+							voice.voiceProfile = VoiceProfile.Mute; // 🔇 No voice assigned.
+							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
+						}
+					}
+				));
 				/*
 				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
 					"CycleVoice",
-					"VOICE: Cycle Voice",
-					"VOICE: Cycle Voice",
+					"Cycle Voice",
+					"Cycle Voice",
 					new UnityAction[] {
 						() => {
 							var enumValues = Enum.GetValues(typeof(VoiceProfile));
 							int currentIndex = Array.IndexOf(enumValues, voice.voiceProfile);
+							if (currentIndex == -1)
+							{
+								currentIndex = 0;
+							}
 							int nextIndex = (currentIndex + 1) % enumValues.Length;
 							voice.voiceProfile = (VoiceProfile)enumValues.GetValue(nextIndex);
 							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
@@ -288,23 +376,14 @@ namespace Mod
 				));
 				*/
 				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceNone",
-					"VOICE: NONE",
-					"VOICE: NONE",
+					"RandomVoice",
+					"Random Voice",
+					"Random Voice",
 					new UnityAction[] {
 						() => {
-							voice.voiceProfile = VoiceProfile.NoVoice; // 🔇 No voice assigned.
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceWheelchairGuy",
-					"VOICE: Wheelchair Guy",
-					"VOICE: Wheelchair Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.WheelchairGuy;
+							var enumValues = Enum.GetValues(typeof(VoiceProfile));
+							int randomIndex = UnityEngine.Random.Range(0, enumValues.Length);
+							voice.voiceProfile = (VoiceProfile)enumValues.GetValue(randomIndex);
 							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
 							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
 							{
@@ -314,171 +393,145 @@ namespace Mod
 					}
 				));
 				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceSegwayGuy",
-					"VOICE: Segway Guy",
-					"VOICE: Segway Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.SegwayGuy;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
+					"VoiceMenu1",
+					"Voice Menu 1",
+					"Voice Menu 1",
+					() => {
+						DialogBoxManager.Dialog("<b>Select Voice</b>", new List<DialogButton> {
+							new DialogButton("Old Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.WheelchairGuy;
+								ModAPI.Notify("Voice: Wheelchair Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Sgw Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.SegwayGuy;
+								ModAPI.Notify("Voice: Segway Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Bike Dad", true, () => {
+								voice.voiceProfile = VoiceProfile.IrresponsibleDad;
+								ModAPI.Notify("Voice: Irresponsible Dad");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Bike Mom", true, () => {
+								voice.voiceProfile = VoiceProfile.IrresponsibleMom;
+								ModAPI.Notify("Voice: Irresponsible Mom");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Mope Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.MopedGuy;
+								ModAPI.Notify("Voice: Moped Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Mope Girl", true, () => {
+								voice.voiceProfile = VoiceProfile.MopedGirl;
+								ModAPI.Notify("Voice: Moped Girl");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							})
+						}.ToArray());
 					}
 				));
 				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceIrresponsibleDad",
-					"VOICE: Irresponsible Dad",
-					"VOICE: Irresponsible Dad",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.IrresponsibleDad;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceIrresponsibleMom",
-					"VOICE: Irresponsible Mom",
-					"VOICE: Irresponsible Mom",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.IrresponsibleMom;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceMopedGuy",
-					"VOICE: Moped Guy",
-					"VOICE: Moped Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.MopedGuy;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceMopedGirl",
-					"VOICE: Moped Girl",
-					"VOICE: Moped Girl",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.MopedGirl;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceLawnmowerGuy",
-					"VOICE: Lawnmower Guy",
-					"VOICE: Lawnmower Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.LawnmowerGuy;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoicePogoStickGuy",
-					"VOICE: Pogo Stick Guy",
-					"VOICE: Pogo Stick Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.PogoStickGuy;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceHelicopterGuy",
-					"VOICE: Helicopter Guy",
-					"VOICE: Helicopter Guy",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.HelicopterGuy;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceKid1",
-					"VOICE: Kid 1",
-					"VOICE: Kid 1",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.Kid1;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceElf",
-					"VOICE: Elf",
-					"VOICE: Elf",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.Elf;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
-					}
-				));
-				phys.ContextMenuOptions.Buttons.Add(new ContextMenuButton(
-					"VoiceSanta",
-					"VOICE: Santa",
-					"VOICE: Santa",
-					new UnityAction[] {
-						() => {
-							voice.voiceProfile = VoiceProfile.Santa;
-							ModAPI.Notify($"New Voice: {voice.voiceProfile}");
-							if (voice.person?.IsAlive() == true && !voice.source.isPlaying)
-							{
-								voice.PlayRandom(voice.VoiceClips);
-							}
-						}
+					"VoiceMenu2",
+					"Voice Menu 2",
+					"Voice Menu 2",
+					() => {
+						DialogBoxManager.Dialog("<b>Select Voice</b>", new List<DialogButton> {
+							new DialogButton("Lawn Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.LawnmowerGuy;
+								ModAPI.Notify("Voice: Lawnmower Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Heli Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.HelicopterGuy;
+								ModAPI.Notify("Voice: Helicopter Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Pogo Guy", true, () => {
+								voice.voiceProfile = VoiceProfile.PogoStickGuy;
+								ModAPI.Notify("Voice: Pogostick Guy");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Kid", true, () => {
+								voice.voiceProfile = VoiceProfile.Kid1;
+								ModAPI.Notify("Voice: Kid");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Elf", true, () => {
+								voice.voiceProfile = VoiceProfile.Elf;
+								ModAPI.Notify("Voice: Elf");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							}),
+							new DialogButton("Santa", true, () => {
+								voice.voiceProfile = VoiceProfile.Santa;
+								ModAPI.Notify("Voice: Santa");
+								if (voice.person?.IsAlive() == true && !voice.source.isPlaying) voice.PlayRandom(voice.VoiceClips);
+							})
+						}.ToArray());
 					}
 				));
 			};
+		}
+	}
+	public class GoreGaloreSettingsUI : MonoBehaviour
+	{
+		int menuIndex;
+		void Start()
+		{
+			gameObject.AddComponent<FreezeBehaviour>();
+			gameObject.GetComponent<SpriteRenderer>().color = Color.clear;
+			gameObject.layer = 0;
+			ShowSettingsMenu(null);
+		}
+		void ShowSettingsMenu(DialogBox dialog)
+		{
+			DialogBox box = null;
+			switch (menuIndex)
+			{
+				case 0:
+					box = DialogBoxManager.Dialog("[GORE GALORE SETTINGS MENU]",
+						new DialogButton("[x]", true, new UnityAction[] {
+							() => {
+								box.Close();
+								Destroy(gameObject);
+							}
+						}),
+						new DialogButton("Voices: " + (Mod.EnableVoices ? "ON" : "OFF"), true, new UnityAction[] {
+							() => {
+								Mod.EnableVoices = !Mod.EnableVoices;
+								SaveSettings();
+								ShowSettingsMenu(box);
+							}
+						}),
+						new DialogButton("Falling: " + (Mod.EnableVoicesFalling ? "ON" : "OFF"), true, new UnityAction[] {
+							() => {
+								Mod.EnableVoicesFalling = !Mod.EnableVoicesFalling;
+								SaveSettings();
+								ShowSettingsMenu(box);
+							}
+						}),
+						new DialogButton("Gore: " + (Mod.EnableGoreSounds ? "ON" : "OFF"), true, new UnityAction[] {
+							() => {
+								Mod.EnableGoreSounds = !Mod.EnableGoreSounds;
+								SaveSettings();
+								ShowSettingsMenu(box);
+							}
+						}),
+						new DialogButton("Bursts: " + (Mod.EnableBurstSounds ? "ON" : "OFF"), true, new UnityAction[] {
+							() => {
+								Mod.EnableBurstSounds = !Mod.EnableBurstSounds;
+								SaveSettings();
+								ShowSettingsMenu(box);
+							}
+						})
+					);
+					break;
+			}
+		}
+		void SaveSettings()
+		{
+			string settings = Mod.EnableVoices + "," + Mod.EnableVoicesFalling + "," + Mod.EnableGoreSounds + "," + Mod.EnableBurstSounds;
+			ModAPI.SerialiseJSON(settings, "GoreGaloreSettings.json");
 		}
 	}
 	public class GoreGaloreBootstrapper : MonoBehaviour
@@ -505,7 +558,6 @@ namespace Mod
 		public LimbBehaviour limb;
 		public GoreAudioSource gore;
 		public VoiceManager scream;
-		// LimbBehaviour.Numbess > 0.5f = No Pain.
 		void Awake()
 		{
 			if (limb == null) { limb = GetComponent<LimbBehaviour>(); }
@@ -515,46 +567,86 @@ namespace Mod
 				scream = limb.Person.Limbs.FirstOrDefault(l => l.HasBrain)?.GetComponent<VoiceManager>();
 			}
 		}
+		public void FixedUpdate()
+		{
+			if (limb.Person.PainLevel > 0.3f)
+			{
+				VoiceScreamAgony();
+			}
+			if (!Mod.EnableVoicesFalling || !limb.name.ToLower().Contains("head")) { return; }
+			var vel = limb.GetComponent<Rigidbody2D>().velocity;
+			if (vel.x > 15f || vel.x < -15f || vel.y < -15f || vel.y > 15f)
+			{
+				VoiceScreamTorso();
+			}
+		}
+		// 🌥️Maybe someday..
+		/*
+		private bool wasCrushed = false;
 		void OnDisable()
 		{
-			Debug.Log($"Crushed '{limb?.name}'.");
-			AudioSource.PlayClipAtPoint(Mod.HappyWheels_BoneSnap[UnityEngine.Random.Range(0, Mod.HappyWheels_BoneSnap.Length)], transform.position, 1f);
-			if (limb.name.ToLower().Contains("head"))
+			if (!wasCrushed && limb != null && limb.PhysicalBehaviour != null && limb.PhysicalBehaviour.isDisintegrated)
 			{
-				AudioSource.PlayClipAtPoint(Mod.HappyWheels_HeadSmash, transform.position, 1f);
+				wasCrushed = true;
+				Debug.Log($"{limb.name} is trying to crush..!");
+				OnCrush();
 			}
-			if (limb.name.ToLower().Contains("upperbody"))
-			{
-				AudioSource.PlayClipAtPoint(Mod.HappyWheels_ChestSmash, transform.position, 1f);
-				scream?.Play(scream.VoiceClips[8]);
-			}
-			if (limb.name.ToLower().Contains("middlebody"))
-			{
-				AudioSource.PlayClipAtPoint(Mod.HappyWheels_PelvisSmash, transform.position, 1f);
-				scream?.Play(scream.VoiceClips[8]);
-			}
-			if (limb.name.ToLower().Contains("lowerbody"))
-			{
-				AudioSource.PlayClipAtPoint(Mod.HappyWheels_PelvisSmash, transform.position, 1f);
-				scream?.Play(scream.VoiceClips[8]);
-			}
-			VoiceGeneric();
 		}
-
+		public virtual void OnCrush() { }
+		*/
+		void OnDisable()
+		{
+			if (!Mod.EnableBurstSounds) { return; }
+			//Debug.Log($"{limb.name} has been crushed!");
+			var dummy = Instantiate(ModAPI.FindSpawnable("Dummy Sound").Prefab, transform.position, Quaternion.identity);
+			CatalogBehaviour.PerformMod(ModAPI.FindSpawnable("Dummy Sound"), dummy);
+			var gore = dummy.GetOrAddComponent<GoreAudioSource>();
+			string name = limb.name.ToLower();
+			gore.PlayForced(Mod.HappyWheels_BoneSnap[UnityEngine.Random.Range(0, Mod.HappyWheels_BoneSnap.Length)]);
+			CameraShakeBehaviour.main.Shake(1f,transform.position);
+			if (name.Contains("head"))
+			{
+				gore.PlayForced(Mod.HappyWheels_HeadSmash);
+				CameraShakeBehaviour.main.Shake(5f,transform.position);
+				return; // 🧠 No need to scream if the head is smashed.
+			}
+			if (name.Contains("arm") || name.Contains("leg"))
+			{
+				gore.PlayForced(Mod.HappyWheels_BoneCrunch[UnityEngine.Random.Range(0, Mod.HappyWheels_BoneCrunch.Length)]);
+				CameraShakeBehaviour.main.Shake(5f,transform.position);
+			}
+			if (name.Contains("body"))
+			{
+				CameraShakeBehaviour.main.Shake(10f,transform.position);
+			}
+			if (name.Contains("upperbody"))
+			{
+				gore.PlayForced(Mod.HappyWheels_ChestSmash);
+				VoiceScreamPelvis();
+			}
+			if (name.Contains("middlebody") || name.Contains("lowerbody"))
+			{
+				gore.PlayForced(Mod.HappyWheels_PelvisSmash);
+				VoiceScreamPelvis();
+			}
+			VoiceScreamGeneric();
+		}
 		public void Shot(Shot shot)
 		{
-			VoiceGeneric();
+			VoiceScreamGeneric();
 		}
 		public void Stabbed(Stabbing stabbing)
 		{
-			VoiceGeneric();
+			VoiceScreamGeneric();
 		}
-		public virtual void VoiceGeneric()
+		public virtual void VoiceScreamGeneric()
 		{
+			if (limb.Person.Consciousness < 0.75f) { return; }
 			var isLimb = limb.name.ToLower().Contains("foot") || limb.name.ToLower().Contains("leg") || limb.name.ToLower().Contains("arm") || limb.name.ToLower().Contains("body") || limb.name.ToLower().Contains("head");
 			if (isLimb)
 			{
-				if (scream != null && scream.VoiceClips != null && scream.VoiceClips.Length > 0)
+				//if (scream != null && scream.VoiceClips != null && scream.VoiceClips.Length > 0)
+				if (scream.VoiceClips.Length > 0)
 				{
 					var validIndexes = Enumerable.Range(0, scream.VoiceClips.Length)
 						.Where(i => i != 8 && i != 12)
@@ -562,9 +654,28 @@ namespace Mod
 					if (validIndexes.Length > 0)
 					{
 						int idx = validIndexes[UnityEngine.Random.Range(0, validIndexes.Length)];
-						scream.Play(scream.VoiceClips[idx]);
+						scream?.Play(scream.VoiceClips?[idx]);
 					}
 				}
+			}
+		}
+		public virtual void VoiceScreamTorso()
+		{
+			if (limb.Person.Consciousness < 0.75f) { return; }
+			scream?.Play(scream.VoiceClips[12]);
+		}
+		public virtual void VoiceScreamPelvis()
+		{
+			if (limb.Person.Consciousness < 0.75f) { return; }
+			scream?.Play(scream.VoiceClips[8]);
+		}
+		public virtual void VoiceScreamAgony()
+		{
+			if (limb.Person.Consciousness < 0.75f) { return; }
+			if (scream.VoiceClips.Length > 12)
+			{
+				int idx = UnityEngine.Random.value < 0.5f ? 8 : 12;
+				scream?.Play(scream.VoiceClips?[idx]);
 			}
 		}
 		// Taken from the Scream mod. Probably needs edited.
@@ -575,14 +686,14 @@ namespace Mod
 			float num = Utils.GetMinImpulse(contactBuffer, contacts);
 			Vector2 point = contactBuffer[0].point;
 			Vector2 normal = contactBuffer[0].normal;
-			if (num >= 2.00f)
+			if (num >= 1f)
 			{
-				VoiceGeneric();
+				VoiceScreamGeneric();
 			}
 		}
 		public void OnJointBreak2D(Joint2D joint)
 		{
-			Debug.Log($"Joint broken! Limb: {limb.name}");
+			//Debug.Log($"{limb.name} has been split!");
 			if (joint == limb.Joint)
 			{
 				gore.PlayRandom(Mod.HappyWheels_BoneSnap);
@@ -594,43 +705,20 @@ namespace Mod
 				if (limb.name.ToLower().Contains("upperbody"))
 				{
 					gore.Play(Mod.HappyWheels_ChestSplit);
-					scream?.Play(scream.VoiceClips[12]);
+					VoiceScreamTorso();
 				}
 				if (limb.name.ToLower().Contains("middlebody"))
 				{
 					gore.Play(Mod.HappyWheels_ChestSplit);
-					scream?.Play(scream.VoiceClips[12]);
+					VoiceScreamTorso();
 				}
 				if (limb.name.ToLower().Contains("lowerbody"))
 				{
 					gore.Play(Mod.HappyWheels_ChestSplit);
-					scream?.Play(scream.VoiceClips[12]);
+					VoiceScreamTorso();
 				}
-				VoiceGeneric();
+				VoiceScreamGeneric();
 			}
-		}
-		// Taken from the Scream mod. Probably needs edited.
-		public bool oldBoneBroken;
-		public void Update()
-		{
-			if (limb.Person.PainLevel > 0.3f)
-			{
-				if (scream != null && scream.VoiceClips != null && scream.VoiceClips.Length > 12)
-				{
-					int idx = UnityEngine.Random.value < 0.5f ? 8 : 12;
-					scream.Play(scream.VoiceClips[idx]);
-				}
-			}
-			/*
-			if (this.oldBoneBroken != limb.Broken && limb.Person.IsAlive())
-			{
-				oldBoneBroken = limb.Broken;
-				if (limb.Broken == true)
-				{
-					VoiceGeneric();
-				}
-			}
-			*/
 		}
 	}
 	public class GoreAudioSource : MonoBehaviour
@@ -640,18 +728,23 @@ namespace Mod
 		{
 			audio = gameObject.AddComponent<AudioSource>();
 			audio.spatialBlend = 1f;
-			audio.volume = 10f;
+			audio.volume = 1f;
 			audio.minDistance = 2f;
 			audio.maxDistance = 25f;
 			audio.dopplerLevel = 0f;
 			gameObject.AddComponent<AudioSourceTimeScaleBehaviour>(); // ⌛PPG sync.
 			Global.main.AddAudioSource(audio); // 🌍Register globally.
 		}
+		public void PlayForced(AudioClip clip)
+		{
+			if (clip == null) return;
+			audio.clip = clip;
+			audio.Play();
+		}
 		public void Play(AudioClip clip)
 		{
-			if (clip == null)
+			if (clip == null || !Mod.EnableGoreSounds)
 			{
-				Debug.Log("Attempted to play a null clip!");
 				return;
 			}
 			audio.clip = clip;
@@ -659,9 +752,8 @@ namespace Mod
 		}
 		public void PlayRandom(AudioClip[] clips)
 		{
-			if (clips == null)
+			if (clips == null || !Mod.EnableGoreSounds)
 			{
-				Debug.Log("Attempted to play null clips!");
 				return;
 			}
 			if (clips != null && clips.Length > 0) { Play(clips[UnityEngine.Random.Range(0, clips.Length)]); }
@@ -679,7 +771,7 @@ namespace Mod
 			{
 				switch (voiceProfile)
 				{
-					case VoiceProfile.NoVoice:
+					case VoiceProfile.Mute:
 						return null; // 🔇 No voice assigned.
 					case VoiceProfile.WheelchairGuy:
 						return Mod.HappyWheels_WheelchairGuy;
@@ -717,7 +809,7 @@ namespace Mod
 		{
 			source = gameObject.AddComponent<AudioSource>();
 			source.spatialBlend = 1f;
-			source.volume = 5f;
+			source.volume = 1f;
 			source.minDistance = 3f;
 			source.maxDistance = 30f;
 			source.playOnAwake = false;
@@ -727,11 +819,12 @@ namespace Mod
 			person = GetComponent<LimbBehaviour>()?.Person;
 			if (!voiceAssigned)
 			{
-				voiceProfile = (VoiceProfile)UnityEngine.Random.Range(0, Enum.GetValues(typeof(VoiceProfile)).Length);
+				// Assign a random voice profile, skipping index 0 (Mute) to ensure a valid voice is selected.
+				voiceProfile = (VoiceProfile)UnityEngine.Random.Range(1, Enum.GetValues(typeof(VoiceProfile)).Length);
 				voiceAssigned = true; // 🏷️Mark voice as assigned. (Doesn't work with copying/saving yet...)
 			}
 			//SpecialVoices();
-			Debug.Log($"Assigned Voice: {voiceProfile}");
+			// ModAPI.Notify($"Assigned Voice: {voiceProfile}"); // Disabled to prevent notification spam.
 		}
 		// 🪲🔨Doesn't work...
 		/*
@@ -791,7 +884,7 @@ namespace Mod
 				source.Stop(); // 🔇 Stop scream if person is dead.
 			}
 		}
-		public void Play(AudioClip clip)
+		/*public void Play(AudioClip clip)
 		{
 			if (voiceProfile == null)
 			{
@@ -822,6 +915,40 @@ namespace Mod
 				return;
 			}
 			if (clips?.Length > 0 && person?.IsAlive() == true && !source.isPlaying)
+			{
+				source.clip = clips[UnityEngine.Random.Range(0, clips.Length)];
+				source.Play();
+			}
+		}*/
+		public void Play(AudioClip clip)
+		{
+			if (clip == null || source == null || !Mod.EnableVoices)
+			{
+				return;
+			}
+			if (!source.isActiveAndEnabled)
+			{
+				Debug.Log("VoiceManager: Tried to play sound on a disabled or inactive AudioSource.");
+				return;
+			}
+			if (person?.IsAlive() == true && !source.isPlaying)
+			{
+				source.clip = clip;
+				source.Play();
+			}
+		}
+		public void PlayRandom(AudioClip[] clips)
+		{
+			if (clips == null || clips.Length == 0 || source == null || !Mod.EnableVoices)
+			{
+				return;
+			}
+			if (!source.isActiveAndEnabled)
+			{
+				Debug.Log("VoiceManager: Tried to play sound on a disabled or inactive AudioSource.");
+				return;
+			}
+			if (person?.IsAlive() == true && !source.isPlaying)
 			{
 				source.clip = clips[UnityEngine.Random.Range(0, clips.Length)];
 				source.Play();

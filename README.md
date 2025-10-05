@@ -2,14 +2,14 @@
 
 _"You’ll hear every snap, shriek, and splatter..."_
 
-From weak gasps to gut-wrenching shrieks, **Gore Galore** gives every injury a voice — and every bone a breaking point!
+From weak gasps to gut-wrenching shrieks, **Gore Galore** gives every injury a voice.. and every bone a breaking point!
 
 Featuring iconic screams and crunches from the classic browser game _Happy Wheels_, this mod turns every moment of violence into a full-blown audio nightmare..
 
 ---
 
 ## 📃 Features
-- 😫 Every Human gets a randomly assigned voice profile — men, women, and children alike!
+- 😫 Every Human gets a randomly assigned voice profile! Men, women, and children alike!
 - 🍖 Gruesome, layered gore sounds: bone snaps, torso splits, pelvis bursts, chest explosions, and more...
 - ⚙️ Turn features On/Off in the Config Menu: Voices, Falling Screams, General Gore noises, and Limb Burst sounds.
 
@@ -52,3 +52,4 @@ Featuring iconic screams and crunches from the classic browser game _Happy Wheel
 
 ## ⌨️ For Developers
 - [**Gore Galore GitHub Repository**](https://github.com/Antinoe/PPG-GoreGalore) — Feel free to contribute!
+
